@@ -1,0 +1,2 @@
+class WrongCounterFileFormatError(Exception):
+    pass
