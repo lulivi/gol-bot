@@ -72,37 +72,3 @@ class PushUpper:
             f"{self._name} has to do {person_normal_pushups} normal and "
             f"{self._punishment} punishment push-up blocks."
         )
-
-
-if __name__ == "__main__":
-    a = PushUpper("juan")
-    b = PushUpper("antonio")
-
-    a.add_normal(3)
-    print(f"Add 3 normals to {a._name}")
-
-    print(a)
-    print(b)
-
-    b.add_normal(4)
-    print(f"Add 4 normals to {b._name}")
-
-    print("------------------------")
-
-    print(a)
-    print(b)
-
-    print("------------------------")
-
-    a.add_normal(3)
-    print(f"Add 3 normals to {a._name}")
-
-    a._punishment = 2
-    print(f"Add 2 punishment to {a._name}")
-
-    print(a)
-
-    a.complete_pushup(4)
-    print(f"Complete 4 pushups: {a._name}")
-
-    print(a)
