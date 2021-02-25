@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Luis Liñán Villafranca. All rights reserved.
+# Copyright (c) 2021 Luis Liñán Villafranca. All rights reserved.
 #
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>
@@ -139,6 +139,15 @@ class PushUpper:
         return len(self._normals) if self._has_normals() else 0
 
     def add_normals(self, number: int = 1) -> None:
+        """Add normal push-ups to the current user.
+
+        The logic consist in that only one of the two participant can have
+        normal push-ups. This way, if participant `a` has 1 push-up block to do
+        and we are ading push-ups to `b`, the count will be 0 for both.
+
+        :param number: number of push-up blocks to add for the current user.
+
+        """
         if number <= 0:
             raise ValueError("You only can add positive punishment push-ups")
 

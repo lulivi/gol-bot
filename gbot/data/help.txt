@@ -1,0 +1,9 @@
+Hey! Are you a small meme dog? DONT BE THAT! DO PUSH-UPS!
+
+In order to correctly
+
+/help - Shows the help message.
+/flexiones [<number>] - Adds a number of push-up blocks. By default 1.
+/flex [<number>] - Alias for /flexiones [<number>].
+/error - Reverts some /flex message.
+/table - Prints a table with the current count.

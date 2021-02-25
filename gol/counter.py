@@ -1,13 +1,14 @@
-# Copyright (c) 2020 Luis Liñán Villafranca. All rights reserved.
+# Copyright (c) 2021 Luis Liñán Villafranca. All rights reserved.
 #
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>
 """Counter main class."""
 import json
 
-from typing import Dict
+from json.decoder import JSONDecodeError
+from typing import Dict, Optional
 
-from gol.error import WrongCounterFileFormatError
+from gol.error import ParticipantNotFound, WrongCounterFileFormatError
 from gol.settings import SAVE_FILE
 from gol.user import PushUpper
 from gol.utils import is_weekend
@@ -23,14 +24,20 @@ class PushUpsCounter:
 
     """
 
-    def __init__(
+    def __init__(self) -> None:
+        """Instantiate the class."""
+        self._first_id: str = ""
+        self._second_id: str = ""
+        self._ppl: Dict[str, PushUpper] = {}
+
+    def config(
         self,
         first_person_name: str,
         first_person_id: str,
         second_person_name: str,
         second_person_id: str,
     ) -> None:
-        """Build a new push-ups counter.
+        """Configure the counter.
 
         :param first_person_name: human readable name for the first
             participant.
@@ -42,32 +49,78 @@ class PushUpsCounter:
             participant.
 
         """
-        self._first_id: str = first_person_id
-        self._second_id: str = second_person_id
-        self._ppl: Dict[str, PushUpper] = {
-            self._first_id: PushUpper(first_person_name, first_person_id),
-            self._second_id: PushUpper(second_person_name, second_person_id),
-        }
+        self._clean()
+        self._first_id = first_person_id
+        self._second_id = second_person_id
+        self._ppl[self._first_id] = PushUpper(
+            first_person_name, first_person_id
+        )
+        self._ppl[self._second_id] = PushUpper(
+            second_person_name, second_person_id
+        )
+        self.save_count()
 
-    def __getitem__(self, key: str) -> PushUpper:
-        """Easy access to the participants by their identification.
+    def is_configured(self) -> bool:
+        """Check if the counter is configured.
 
-        :param key: identification string for the participant.
-        :raises KeyError: when the participant does not exist.
-        :returns: the participant object.
+        :returns: True if the counter is configured.
 
         """
-        if key not in self._ppl:
-            raise KeyError(f"Could not find user '{key}'")
+        is_configured = False
 
-        return self._ppl[key]
+        if self._first_id and self._second_id and len(self._ppl) == 2:
+            is_configured = True
 
-    def add_pushups(self) -> None:
-        pass
+        return is_configured
+
+    def add_pushups(self, requester: str, target: str) -> None:
+        """Apply the correct push-ups depending of the choosen rules.
+
+        :param requester: the requester participant identification.
+        :param target: the identification of the target messager.
+
+        """
+        requester_user = self._ppl[requester]
+        non_requester_user = self._ppl[self.opposite(requester)]
+
+        if requester == target:
+            if is_weekend():
+                requester_user.add_normals(1)
+            else:
+                non_requester_user.add_normals(1)
+        else:
+            if is_weekend():
+                requester_user.add_normals(2)
+            else:
+                requester_user.add_normals(1)
+
+    def process_audio(self, sender: str) -> None:
+        """Add the necessary push-ups if the conditions are chosen.
+
+        :param sender: the push-ups inquisitor.
+
+        """
+        if is_weekend() and self._ppl[sender].rip_wknd:
+            self.add_pushups(self.opposite(sender), sender)
+
+    def process_error(self, sender: str) -> None:
+        """Add necesary push-ups when error occurs.
+
+        :param sender: the push-ups inquisitor.
+
+        """
+        opposite = self.opposite(sender)
+        self.add_pushups(sender, opposite)
+        self.add_pushups(sender, opposite)
 
     def load_count(self) -> None:
         """Read the counter saved values from a file."""
-        json_count = json.load(SAVE_FILE.open("r"))
+        try:
+            json_count = json.load(SAVE_FILE.open("r"))
+        except JSONDecodeError as error:
+            raise WrongCounterFileFormatError(
+                f"There was an error reading the config file: {error}"
+            )
         normals = json_count.pop("normals")
 
         if len(json_count) != 2:
@@ -75,28 +128,30 @@ class PushUpsCounter:
                 "It should only be two id's in the serialized config file"
             )
 
-        id_list = list(self._ppl)
+        id_list = list(json_count.keys())
 
         if any(map(lambda x: x not in id_list, normals)):
             raise WrongCounterFileFormatError(
                 "The normals list does not match with the provided id's"
             )
 
+        self.config(
+            json_count[id_list[0]]["name"],
+            id_list[0],
+            json_count[id_list[1]]["name"],
+            id_list[1],
+        )
+
+        first_person = json_count[self._first_id]
+        second_person = json_count[self._second_id]
+
         self._ppl[self._first_id].normals = normals
-        self._ppl[self._first_id].name = json_count[self._first_id]["name"]
-        self._ppl[self._first_id].rip_wknd = json_count[self._first_id][
-            "rip_wknd"
-        ]
-        self._ppl[self._first_id].punishments = json_count[self._first_id][
-            "punishments"
-        ]
-        self._ppl[self._second_id].name = json_count[self._second_id]["name"]
-        self._ppl[self._second_id].rip_wknd = json_count[self._second_id][
-            "rip_wknd"
-        ]
-        self._ppl[self._second_id].punishments = json_count[self._second_id][
-            "punishments"
-        ]
+        self._ppl[self._first_id].name = first_person["name"]
+        self._ppl[self._first_id].rip_wknd = first_person["rip_wknd"]
+        self._ppl[self._first_id].punishments = first_person["punishments"]
+        self._ppl[self._second_id].name = second_person["name"]
+        self._ppl[self._second_id].rip_wknd = second_person["rip_wknd"]
+        self._ppl[self._second_id].punishments = second_person["punishments"]
 
     def save_count(self) -> None:
         """Save the counter into a file."""
@@ -139,8 +194,28 @@ class PushUpsCounter:
             "+-----------+----------+----------+"
         )
 
+    def opposite(self, participant_id: str) -> str:
+        """Obtain the opposite participant.
+
+        :param participant_id: id of the participant to check the other.
+        :returns: the opposite participant.
+
+        """
+        if participant_id not in self._ppl:
+            raise ParticipantNotFound(
+                f"Couldn't find the participant {participant_id}"
+            )
+
+        return set(self._ppl).difference({participant_id}).pop()
+
+    def _clean(self) -> None:
+        """Clean the counter."""
+        self._first_id = ""
+        self._second_id = ""
+        self._ppl.clear()
+
     def __str__(self) -> str:
-        """String representation of the object.
+        """Return the string representation of the object.
 
         :returns: the representation.
 
